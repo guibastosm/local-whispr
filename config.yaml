@@ -5,7 +5,7 @@ shortcuts:
 
 whisper:
   model: "large-v3"
-  language: "pt"
+  language: ""  # auto-detect (suporta múltiplos idiomas na mesma sessão)
   device: "cuda"
   compute_type: "float16"
 
