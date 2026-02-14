@@ -1,4 +1,4 @@
-"""Polimento de texto via Ollama LLM."""
+"""Text polishing via Ollama LLM."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 
 class AICleanup:
-    """Usa Ollama para limpar e polir texto transcrito."""
+    """Uses Ollama to clean and polish transcribed text."""
 
     def __init__(self, config: OllamaConfig | None = None) -> None:
         from localwhispr.config import OllamaConfig as OC
@@ -22,7 +22,7 @@ class AICleanup:
         self._prompt = cfg.cleanup_prompt
 
     def cleanup(self, raw_text: str) -> str:
-        """Envia texto bruto ao Ollama e retorna texto polido."""
+        """Send raw text to Ollama and return polished text."""
         if not raw_text.strip():
             return ""
 
@@ -31,7 +31,7 @@ class AICleanup:
                 f"{self._base_url}/api/generate",
                 json={
                     "model": self._model,
-                    "prompt": f"{self._prompt}\n\nTexto transcrito:\n{raw_text}",
+                    "prompt": f"{self._prompt}\n\nTranscribed text:\n{raw_text}",
                     "stream": False,
                     "options": {
                         "temperature": 0.1,
@@ -45,34 +45,35 @@ class AICleanup:
             cleaned = data.get("response", "").strip()
 
             if cleaned:
-                print(f"[localwhispr] IA cleanup: {cleaned[:100]}...")
+                print(f"[localwhispr] AI cleanup: {cleaned[:100]}...")
                 return cleaned
 
-            # Fallback: retorna texto original se IA retornar vazio
+            # Fallback: return original text if AI returns empty
             return raw_text
 
         except httpx.ConnectError:
-            print("[localwhispr] ERRO: Não foi possível conectar ao Ollama. Está rodando?")
+            print("[localwhispr] ERROR: Could not connect to Ollama. Is it running?")
             print(f"[localwhispr] URL: {self._base_url}")
             return raw_text
         except Exception as e:
-            print(f"[localwhispr] ERRO no cleanup com IA: {e}")
+            print(f"[localwhispr] ERROR in AI cleanup: {e}")
             return raw_text
 
     _CONVERSATION_PROMPT = (
-        "Você é um assistente de polimento de transcrições de conversa.\n"
-        "O texto contém labels [Eu] e [Outro] indicando quem falou.\n"
-        "Regras:\n"
-        "- MANTENHA os labels [Eu] e [Outro] exatamente como estão\n"
-        "- Remova hesitações (uh, hmm, eh, tipo, né, então, assim)\n"
-        "- Adicione pontuação correta\n"
-        "- Corrija erros óbvios de transcrição\n"
-        "- Mantenha o significado original intacto\n"
-        "- Responda SOMENTE com o texto limpo, sem explicações ou prefácios."
+        "You are a conversation transcription polishing assistant.\n"
+        "The text contains labels [Me] and [Other] indicating who spoke.\n"
+        "Rules:\n"
+        "- KEEP the labels [Me] and [Other] exactly as they are\n"
+        "- Remove hesitations (uh, uhm, hmm, eh, like, you know, so, well, tipo, né, então, assim)\n"
+        "- Add correct punctuation\n"
+        "- Fix obvious transcription errors\n"
+        "- Keep the original meaning intact\n"
+        "- ALWAYS respond in the SAME LANGUAGE as the input text\n"
+        "- Respond ONLY with the cleaned text, no explanations or preambles."
     )
 
     def cleanup_conversation(self, labeled_text: str) -> str:
-        """Polir conversa com labels [Eu]/[Outro], mantendo os labels."""
+        """Polish conversation with [Me]/[Other] labels, keeping the labels."""
         if not labeled_text.strip():
             return ""
 
@@ -81,7 +82,7 @@ class AICleanup:
                 f"{self._base_url}/api/generate",
                 json={
                     "model": self._model,
-                    "prompt": f"{self._CONVERSATION_PROMPT}\n\nTranscrição:\n{labeled_text}",
+                    "prompt": f"{self._CONVERSATION_PROMPT}\n\nTranscription:\n{labeled_text}",
                     "stream": False,
                     "options": {
                         "temperature": 0.1,
@@ -95,14 +96,14 @@ class AICleanup:
             cleaned = data.get("response", "").strip()
 
             if cleaned:
-                print(f"[localwhispr] IA cleanup conversa: {cleaned[:100]}...")
+                print(f"[localwhispr] AI cleanup conversation: {cleaned[:100]}...")
                 return cleaned
 
             return labeled_text
 
         except httpx.ConnectError:
-            print("[localwhispr] ERRO: Não foi possível conectar ao Ollama.")
+            print("[localwhispr] ERROR: Could not connect to Ollama.")
             return labeled_text
         except Exception as e:
-            print(f"[localwhispr] ERRO no cleanup conversa: {e}")
+            print(f"[localwhispr] ERROR in conversation cleanup: {e}")
             return labeled_text

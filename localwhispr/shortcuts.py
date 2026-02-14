@@ -1,4 +1,4 @@
-"""Configura atalhos de teclado do GNOME para o LocalWhispr."""
+"""Configure GNOME keyboard shortcuts for LocalWhispr."""
 
 from __future__ import annotations
 
@@ -12,12 +12,12 @@ SCHEMA = "org.gnome.settings-daemon.plugins.media-keys"
 KEY = "custom-keybindings"
 BASE_PATH = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings"
 
-# Encontra o binário localwhispr no PATH
-VISIONFLOW_BIN = shutil.which("localwhispr")
+# Find the localwhispr binary in PATH
+LOCALWHISPR_BIN = shutil.which("localwhispr")
 
 
 def _run_gsettings(*args: str) -> str:
-    """Executa gsettings e retorna stdout."""
+    """Execute gsettings and return stdout."""
     result = subprocess.run(
         ["gsettings", *args],
         capture_output=True, text=True
@@ -26,7 +26,7 @@ def _run_gsettings(*args: str) -> str:
 
 
 def _run_dconf(*args: str) -> str:
-    """Executa dconf e retorna stdout."""
+    """Execute dconf and return stdout."""
     result = subprocess.run(
         ["dconf", *args],
         capture_output=True, text=True
@@ -35,11 +35,10 @@ def _run_dconf(*args: str) -> str:
 
 
 def _get_existing_custom_keybindings() -> list[str]:
-    """Retorna lista de paths de keybindings customizados existentes."""
+    """Return list of existing custom keybinding paths."""
     raw = _run_gsettings("get", SCHEMA, KEY)
     if raw in ("@as []", "[]", ""):
         return []
-    # Parse: ['path1', 'path2', ...]
     try:
         return json.loads(raw.replace("'", '"'))
     except json.JSONDecodeError:
@@ -47,7 +46,7 @@ def _get_existing_custom_keybindings() -> list[str]:
 
 
 def _find_localwhispr_slots(existing: list[str]) -> dict[str, str]:
-    """Encontra slots já usados pelo LocalWhispr."""
+    """Find slots already used by LocalWhispr."""
     slots = {}
     for path in existing:
         name = _run_dconf("read", f"{path}name")
@@ -63,10 +62,9 @@ def _find_localwhispr_slots(existing: list[str]) -> dict[str, str]:
 
 
 def _next_slot_index(existing: list[str]) -> int:
-    """Encontra o próximo índice livre para custom keybinding."""
+    """Find the next free index for a custom keybinding."""
     used = set()
     for path in existing:
-        # path like: /org/.../custom0/
         try:
             idx = int(path.rstrip("/").split("custom")[-1])
             used.add(idx)
@@ -79,7 +77,7 @@ def _next_slot_index(existing: list[str]) -> int:
 
 
 def _write_keybinding(path: str, name: str, command: str, binding: str) -> None:
-    """Escreve uma keybinding customizada via dconf."""
+    """Write a custom keybinding via dconf."""
     subprocess.run(["dconf", "write", f"{path}name", f"'{name}'"], check=True)
     subprocess.run(["dconf", "write", f"{path}command", f"'{command}'"], check=True)
     subprocess.run(["dconf", "write", f"{path}binding", f"'{binding}'"], check=True)
@@ -90,18 +88,18 @@ def setup_gnome_shortcuts(
     screenshot_binding: str = "<Ctrl><Shift>s",
     meeting_binding: str = "<Ctrl><Shift>m",
 ) -> None:
-    """Registra (ou atualiza) atalhos do GNOME para LocalWhispr."""
-    # Verifica se gsettings/dconf estão disponíveis
+    """Register (or update) GNOME shortcuts for LocalWhispr."""
+    # Check if gsettings/dconf are available
     if not shutil.which("gsettings") or not shutil.which("dconf"):
-        print("[localwhispr] ERRO: gsettings ou dconf não encontrado.")
-        print("[localwhispr] Instale com: sudo pacman -S dconf")
+        print("[localwhispr] ERROR: gsettings or dconf not found.")
+        print("[localwhispr] Install with: sudo pacman -S dconf")
         sys.exit(1)
 
-    # Determina o comando base
-    if VISIONFLOW_BIN:
-        base_cmd = VISIONFLOW_BIN
+    # Determine base command
+    if LOCALWHISPR_BIN:
+        base_cmd = LOCALWHISPR_BIN
     else:
-        # Fallback: usa o path do venv atual
+        # Fallback: use current venv path
         import os
         venv = os.environ.get("VIRTUAL_ENV")
         if venv:
@@ -114,50 +112,50 @@ def setup_gnome_shortcuts(
     meeting_cmd = f"{base_cmd} ctl meeting"
 
     existing = _get_existing_custom_keybindings()
-    vf_slots = _find_localwhispr_slots(existing)
+    lw_slots = _find_localwhispr_slots(existing)
 
     new_paths = list(existing)
 
-    # --- Atalho de ditado ---
-    if "dictate" in vf_slots:
-        path = vf_slots["dictate"]
-        print(f"[localwhispr] Atualizando atalho de ditado em {path}")
+    # --- Dictation shortcut ---
+    if "dictate" in lw_slots:
+        path = lw_slots["dictate"]
+        print(f"[localwhispr] Updating dictation shortcut at {path}")
     else:
         idx = _next_slot_index(new_paths)
         path = f"{BASE_PATH}/custom{idx}/"
         new_paths.append(path)
-        print(f"[localwhispr] Criando atalho de ditado em {path}")
+        print(f"[localwhispr] Creating dictation shortcut at {path}")
 
-    _write_keybinding(path, "LocalWhispr Ditado", dictate_cmd, dictate_binding)
+    _write_keybinding(path, "LocalWhispr Dictation", dictate_cmd, dictate_binding)
     print(f"  → {dictate_binding} → {dictate_cmd}")
 
-    # --- Atalho de screenshot ---
-    if "screenshot" in vf_slots:
-        path = vf_slots["screenshot"]
-        print(f"[localwhispr] Atualizando atalho de screenshot em {path}")
+    # --- Screenshot shortcut ---
+    if "screenshot" in lw_slots:
+        path = lw_slots["screenshot"]
+        print(f"[localwhispr] Updating screenshot shortcut at {path}")
     else:
         idx = _next_slot_index(new_paths)
         path = f"{BASE_PATH}/custom{idx}/"
         new_paths.append(path)
-        print(f"[localwhispr] Criando atalho de screenshot em {path}")
+        print(f"[localwhispr] Creating screenshot shortcut at {path}")
 
     _write_keybinding(path, "LocalWhispr Screenshot", screenshot_cmd, screenshot_binding)
     print(f"  → {screenshot_binding} → {screenshot_cmd}")
 
-    # --- Atalho de meeting ---
-    if "meeting" in vf_slots:
-        path = vf_slots["meeting"]
-        print(f"[localwhispr] Atualizando atalho de meeting em {path}")
+    # --- Meeting shortcut ---
+    if "meeting" in lw_slots:
+        path = lw_slots["meeting"]
+        print(f"[localwhispr] Updating meeting shortcut at {path}")
     else:
         idx = _next_slot_index(new_paths)
         path = f"{BASE_PATH}/custom{idx}/"
         new_paths.append(path)
-        print(f"[localwhispr] Criando atalho de meeting em {path}")
+        print(f"[localwhispr] Creating meeting shortcut at {path}")
 
     _write_keybinding(path, "LocalWhispr Meeting", meeting_cmd, meeting_binding)
     print(f"  → {meeting_binding} → {meeting_cmd}")
 
-    # --- Atualiza lista de custom keybindings ---
+    # --- Update custom keybindings list ---
     paths_str = str(new_paths).replace('"', "'")
     subprocess.run(
         ["gsettings", "set", SCHEMA, KEY, paths_str],
@@ -165,9 +163,9 @@ def setup_gnome_shortcuts(
     )
 
     print()
-    print("[localwhispr] Atalhos configurados com sucesso!")
-    print("[localwhispr] Você pode verificar em: Configurações > Teclado > Atalhos > Atalhos Personalizados")
+    print("[localwhispr] Shortcuts configured successfully!")
+    print("[localwhispr] Verify at: Settings > Keyboard > Shortcuts > Custom Shortcuts")
     print()
-    print("  Ditado (toggle):    " + dictate_binding)
-    print("  Screenshot + IA:    " + screenshot_binding)
-    print("  Reunião (toggle):   " + meeting_binding)
+    print("  Dictation (toggle):  " + dictate_binding)
+    print("  Screenshot + AI:     " + screenshot_binding)
+    print("  Meeting (toggle):    " + meeting_binding)

@@ -1,4 +1,4 @@
-"""Hotkeys globais via evdev para Wayland."""
+"""Global hotkeys via evdev for Wayland."""
 
 from __future__ import annotations
 
@@ -14,16 +14,16 @@ from localwhispr.config import HotkeyConfig
 
 
 def _find_keyboard_devices() -> list[InputDevice]:
-    """Encontra todos os dispositivos de teclado disponíveis."""
+    """Find all available keyboard devices."""
     devices = []
     for path in sorted(Path("/dev/input/").glob("event*")):
         try:
             dev = InputDevice(str(path))
             caps = dev.capabilities(verbose=False)
-            # Verifica se o dispositivo tem teclas de teclado (EV_KEY)
+            # Check if device has keyboard keys (EV_KEY)
             if ecodes.EV_KEY in caps:
                 key_caps = caps[ecodes.EV_KEY]
-                # Verifica se tem teclas comuns de teclado (A-Z)
+                # Check if it has common keyboard keys (A-Z)
                 if ecodes.KEY_A in key_caps and ecodes.KEY_Z in key_caps:
                     devices.append(dev)
                 else:
@@ -36,15 +36,15 @@ def _find_keyboard_devices() -> list[InputDevice]:
 
 
 def _key_name_to_code(name: str) -> int:
-    """Converte nome de tecla evdev (ex: 'KEY_LEFTCTRL') para código numérico."""
+    """Convert evdev key name (e.g. 'KEY_LEFTCTRL') to numeric code."""
     code = getattr(ecodes, name, None)
     if code is None:
-        raise ValueError(f"Tecla desconhecida: {name}. Use nomes evdev como KEY_LEFTCTRL, KEY_A, etc.")
+        raise ValueError(f"Unknown key: {name}. Use evdev names like KEY_LEFTCTRL, KEY_A, etc.")
     return code
 
 
 class HotkeyListener:
-    """Escuta hotkeys globais via evdev e dispara callbacks."""
+    """Listens to global hotkeys via evdev and fires callbacks."""
 
     def __init__(
         self,
@@ -62,11 +62,11 @@ class HotkeyListener:
         self._on_screenshot_start = on_screenshot_start
         self._on_screenshot_stop = on_screenshot_stop
 
-        # Converte nomes para códigos
+        # Convert names to codes
         self._dictation_keys = {_key_name_to_code(k) for k in config.dictation}
         self._screenshot_keys = {_key_name_to_code(k) for k in config.screenshot_command}
 
-        # Estado
+        # State
         self._pressed_keys: set[int] = set()
         self._dictation_active = False
         self._screenshot_active = False
@@ -75,29 +75,29 @@ class HotkeyListener:
         self._hold_threshold = config.hold_threshold_ms / 1000.0
 
     async def run(self) -> None:
-        """Loop principal de escuta de hotkeys."""
+        """Main hotkey listening loop."""
         devices = _find_keyboard_devices()
         if not devices:
-            print("[localwhispr] ERRO: Nenhum teclado encontrado.")
-            print("[localwhispr] Verifique se seu usuário está no grupo 'input':")
+            print("[localwhispr] ERROR: No keyboard found.")
+            print("[localwhispr] Check if your user is in the 'input' group:")
             print("[localwhispr]   sudo usermod -aG input $USER")
-            print("[localwhispr]   (requer logout/login)")
+            print("[localwhispr]   (requires logout/login)")
             return
 
-        print(f"[localwhispr] Escutando {len(devices)} dispositivo(s) de teclado")
+        print(f"[localwhispr] Listening on {len(devices)} keyboard device(s)")
         for dev in devices:
             print(f"[localwhispr]   - {dev.name} ({dev.path})")
 
         dict_names = " + ".join(self._config.dictation)
         screenshot_names = " + ".join(self._config.screenshot_command)
-        print(f"[localwhispr] Hotkeys: ditado={dict_names}, screenshot={screenshot_names}")
-        print(f"[localwhispr] Modo: {self._mode}")
+        print(f"[localwhispr] Hotkeys: dictation={dict_names}, screenshot={screenshot_names}")
+        print(f"[localwhispr] Mode: {self._mode}")
 
         tasks = [asyncio.create_task(self._listen_device(dev)) for dev in devices]
         await asyncio.gather(*tasks)
 
     async def _listen_device(self, device: InputDevice) -> None:
-        """Escuta eventos de um dispositivo específico."""
+        """Listen to events from a specific device."""
         try:
             async for event in device.async_read_loop():
                 if event.type != ecodes.EV_KEY:
@@ -114,11 +114,11 @@ class HotkeyListener:
                     self._pressed_keys.discard(code)
 
         except (OSError, IOError) as e:
-            print(f"[localwhispr] Dispositivo desconectado: {device.name} ({e})")
+            print(f"[localwhispr] Device disconnected: {device.name} ({e})")
 
     def _handle_key_down(self) -> None:
-        """Processa tecla pressionada."""
-        # Verifica combo de ditado
+        """Process key press."""
+        # Check dictation combo
         if self._dictation_keys.issubset(self._pressed_keys):
             if not self._dictation_active and not self._screenshot_active:
                 self._dictation_press_time = time.monotonic()
@@ -127,29 +127,29 @@ class HotkeyListener:
                     self._dictation_active = True
                     self._on_dictation_start()
                 elif self._mode == "toggle":
-                    # Toggle: start/stop no key_down
-                    pass  # Tratado no _handle_dictation_toggle
+                    # Toggle: start/stop on key_down
+                    pass  # Handled in _handle_dictation_toggle
                 elif self._mode == "both":
-                    # No modo "both", começa a gravar imediatamente
-                    # Se soltar rápido (< threshold), trata como toggle
+                    # In "both" mode, start recording immediately
+                    # If released quickly (< threshold), treat as toggle
                     self._dictation_active = True
                     self._on_dictation_start()
 
-        # Verifica combo de screenshot
+        # Check screenshot combo
         if self._screenshot_keys.issubset(self._pressed_keys):
             if not self._screenshot_active and not self._dictation_active:
                 self._screenshot_active = True
                 self._on_screenshot_start()
 
     def _handle_key_up(self, released_code: int) -> None:
-        """Processa tecla solta."""
-        # Screenshot: solta qualquer tecla do combo → para
+        """Process key release."""
+        # Screenshot: release any key in combo -> stop
         if self._screenshot_active and released_code in self._screenshot_keys:
             self._screenshot_active = False
             self._on_screenshot_stop()
             return
 
-        # Ditado: lógica depende do modo
+        # Dictation: logic depends on mode
         if released_code in self._dictation_keys:
             if self._mode == "hold" and self._dictation_active:
                 self._dictation_active = False
@@ -166,15 +166,15 @@ class HotkeyListener:
             elif self._mode == "both" and self._dictation_active:
                 elapsed = time.monotonic() - self._dictation_press_time
                 if elapsed < self._hold_threshold:
-                    # Press curto: modo toggle — mantém gravando, para no próximo press
-                    pass  # Continua gravando, será parado no próximo key_down
+                    # Short press: toggle mode — keep recording, stop on next press
+                    pass  # Keep recording, will be stopped on next key_down
                 else:
-                    # Press longo: modo hold — para de gravar
+                    # Long press: hold mode — stop recording
                     self._dictation_active = False
                     self._on_dictation_stop()
 
     def stop_if_active(self) -> None:
-        """Para gravação se estiver ativa (para uso externo no modo toggle)."""
+        """Stop recording if active (for external use in toggle mode)."""
         if self._dictation_active:
             self._dictation_active = False
             self._on_dictation_stop()

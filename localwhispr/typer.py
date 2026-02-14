@@ -1,4 +1,4 @@
-"""Injeção de texto no app focado via ydotool ou wtype (Wayland)."""
+"""Text injection into focused app via ydotool or wtype (Wayland)."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ def _has_command(cmd: str) -> bool:
 
 
 class Typer:
-    """Digita texto no app atualmente focado usando ferramentas do Wayland."""
+    """Types text into the currently focused app using Wayland tools."""
 
     def __init__(self, config: TypingConfig | None = None) -> None:
         from localwhispr.config import TypingConfig as TC
@@ -31,39 +31,39 @@ class Typer:
             return
 
         if self._method == "ydotool" and not _has_command("ydotool"):
-            print("[localwhispr] AVISO: ydotool não encontrado, tentando wtype...")
+            print("[localwhispr] WARNING: ydotool not found, trying wtype...")
             if _has_command("wtype"):
                 self._method = "wtype"
             else:
                 raise RuntimeError(
-                    "Nenhuma ferramenta de digitação encontrada. "
-                    "Instale ydotool ou wtype: sudo pacman -S ydotool wtype"
+                    "No typing tool found. "
+                    "Install ydotool or wtype: sudo pacman -S ydotool wtype"
                 )
         elif self._method == "wtype" and not _has_command("wtype"):
-            print("[localwhispr] AVISO: wtype não encontrado, tentando ydotool...")
+            print("[localwhispr] WARNING: wtype not found, trying ydotool...")
             if _has_command("ydotool"):
                 self._method = "ydotool"
             else:
                 raise RuntimeError(
-                    "Nenhuma ferramenta de digitação encontrada. "
-                    "Instale ydotool ou wtype: sudo pacman -S ydotool wtype"
+                    "No typing tool found. "
+                    "Install ydotool or wtype: sudo pacman -S ydotool wtype"
                 )
 
         self._validated = True
 
     def type_text(self, text: str) -> None:
-        """Digita o texto no app focado."""
+        """Type text into the focused app."""
         if not text:
             return
 
         self._validate()
 
-        # Sempre usa clipboard para texto com caracteres Unicode/acentos
-        # ydotool type não lida bem com ã, í, ç, õ, etc.
+        # Always use clipboard for text with Unicode/accented characters
+        # ydotool type doesn't handle well characters like ã, í, ç, õ, etc.
         self._type_clipboard(text)
 
     def _type_ydotool(self, text: str) -> None:
-        """Digita usando ydotool (funciona na maioria dos compositors Wayland)."""
+        """Type using ydotool (works on most Wayland compositors)."""
         try:
             result = subprocess.run(
                 ["ydotool", "type", "--key-delay", str(self._delay_ms), "--", text],
@@ -73,24 +73,24 @@ class Typer:
             if result.returncode != 0:
                 stderr = result.stderr.decode().strip()
                 if "failed to connect" in stderr.lower() or "socket" in stderr.lower():
-                    print("[localwhispr] ERRO: ydotoold não está rodando.")
-                    print("[localwhispr] Execute: systemctl --user enable --now ydotool")
-                    # Fallback para clipboard
+                    print("[localwhispr] ERROR: ydotoold is not running.")
+                    print("[localwhispr] Run: systemctl --user enable --now ydotool")
+                    # Fallback to clipboard
                     self._type_clipboard(text)
                 else:
-                    print(f"[localwhispr] ERRO ydotool: {stderr}")
+                    print(f"[localwhispr] ERROR ydotool: {stderr}")
                     self._type_clipboard(text)
         except FileNotFoundError:
-            print("[localwhispr] ERRO: ydotool não encontrado.")
+            print("[localwhispr] ERROR: ydotool not found.")
             self._type_clipboard(text)
         except subprocess.TimeoutExpired:
-            print("[localwhispr] ERRO: ydotool timeout.")
+            print("[localwhispr] ERROR: ydotool timeout.")
         except Exception as e:
-            print(f"[localwhispr] ERRO ydotool: {e}")
+            print(f"[localwhispr] ERROR ydotool: {e}")
             self._type_clipboard(text)
 
     def _type_wtype(self, text: str) -> None:
-        """Digita usando wtype (requer suporte a virtual-keyboard protocol)."""
+        """Type using wtype (requires virtual-keyboard protocol support)."""
         try:
             result = subprocess.run(
                 ["wtype", "--delay", str(self._delay_ms), "--", text],
@@ -98,29 +98,29 @@ class Typer:
                 timeout=30,
             )
             if result.returncode != 0:
-                print(f"[localwhispr] ERRO wtype: {result.stderr.decode().strip()}")
+                print(f"[localwhispr] ERROR wtype: {result.stderr.decode().strip()}")
                 self._type_clipboard(text)
         except Exception as e:
-            print(f"[localwhispr] ERRO wtype: {e}")
+            print(f"[localwhispr] ERROR wtype: {e}")
             self._type_clipboard(text)
 
     def _type_clipboard(self, text: str) -> None:
-        """Copia para clipboard via wl-copy e simula Ctrl+V.
-        
-        O wl-copy fica vivo para manter o texto no clipboard,
-        permitindo que o usuário cole novamente com Ctrl+V.
+        """Copy to clipboard via wl-copy and simulate Ctrl+V.
+
+        The wl-copy process stays alive to keep the text in the clipboard,
+        allowing the user to paste again with Ctrl+V.
         """
-        print("[localwhispr] Digitando via clipboard + Ctrl+V")
+        print("[localwhispr] Typing via clipboard + Ctrl+V")
         try:
             if not _has_command("wl-copy"):
-                print("[localwhispr] ERRO: wl-copy não encontrado. Instale: sudo pacman -S wl-clipboard")
+                print("[localwhispr] ERROR: wl-copy not found. Install: sudo pacman -S wl-clipboard")
                 return
 
-            # Mata o wl-copy anterior (se existir) antes de iniciar novo
+            # Kill previous wl-copy (if exists) before starting a new one
             self._kill_prev_wl_copy()
 
-            # wl-copy no Wayland é um "clipboard owner" -- precisa ficar vivo
-            # para manter o conteúdo no clipboard. Mantemos vivo até o próximo uso.
+            # wl-copy on Wayland is a "clipboard owner" -- needs to stay alive
+            # to keep content in clipboard. We keep it alive until next use.
             self._wl_copy_proc = subprocess.Popen(
                 ["wl-copy", "--", text],
                 stdin=subprocess.DEVNULL,
@@ -128,10 +128,10 @@ class Typer:
                 stderr=subprocess.PIPE,
             )
 
-            # Espera breve para o clipboard registrar
+            # Brief wait for clipboard to register
             time.sleep(0.15)
 
-            # Simula Ctrl+V para colar
+            # Simulate Ctrl+V to paste
             paste_ok = False
             if _has_command("ydotool"):
                 result = subprocess.run(
@@ -149,16 +149,16 @@ class Typer:
                 paste_ok = result.returncode == 0
 
             if not paste_ok:
-                print("[localwhispr] AVISO: falha ao simular Ctrl+V. Texto está no clipboard, cole manualmente.")
+                print("[localwhispr] WARNING: failed to simulate Ctrl+V. Text is in clipboard, paste manually.")
 
-            # NÃO mata o wl-copy — ele fica vivo para o clipboard persistir.
-            # Será morto apenas quando um novo texto for copiado.
+            # DO NOT kill wl-copy — it stays alive to keep clipboard persistent.
+            # Will be killed only when new text is copied.
 
         except Exception as e:
-            print(f"[localwhispr] ERRO no clipboard: {e}")
+            print(f"[localwhispr] ERROR in clipboard: {e}")
 
     def _kill_prev_wl_copy(self) -> None:
-        """Mata o processo wl-copy anterior, se existir."""
+        """Kill the previous wl-copy process, if it exists."""
         proc = getattr(self, "_wl_copy_proc", None)
         if proc and proc.poll() is None:
             proc.terminate()

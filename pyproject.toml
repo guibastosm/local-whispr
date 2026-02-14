@@ -1,7 +1,7 @@
 [project]
 name = "localwhispr"
 version = "0.2.0"
-description = "LocalWhispr - Ditado por voz multimodal com IA para Linux (GNOME Wayland). Combina faster-whisper CUDA + Ollama + screenshot multimodal."
+description = "LocalWhispr - Multimodal voice dictation with AI for Linux (GNOME Wayland). Combines faster-whisper CUDA + Ollama + multimodal screenshot."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.12"

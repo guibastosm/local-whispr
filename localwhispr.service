@@ -1,12 +1,12 @@
 [Unit]
-Description=LocalWhispr - Ditado por voz multimodal com IA
+Description=LocalWhispr - Multimodal voice dictation with AI
 After=graphical-session.target
 Wants=graphical-session.target
 
 [Service]
 Type=simple
-# IMPORTANTE: Edite os caminhos abaixo para o seu usuário/diretório
-# Ou use: sed -i "s|/home/USER|$HOME|g" localwhispr.service
+# IMPORTANT: Edit the paths below for your user/directory
+# Or use: sed -i "s|/home/USER|$HOME|g" localwhispr.service
 WorkingDirectory=/home/USER/ai-meeting-notes
 ExecStart=/home/USER/ai-meeting-notes/.venv/bin/localwhispr serve --preload-model -c /home/USER/ai-meeting-notes/config.yaml
 Restart=on-failure

@@ -1,4 +1,4 @@
-"""Notificações de status do LocalWhispr via libnotify e sons."""
+"""LocalWhispr status notifications via libnotify and sounds."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ def _has_command(cmd: str) -> bool:
 
 
 def notify(title: str, body: str = "", config: NotificationConfig | None = None) -> None:
-    """Envia uma notificação via notify-send."""
+    """Send a notification via notify-send."""
     if config and not config.enabled:
         return
 
@@ -36,7 +36,7 @@ def notify(title: str, body: str = "", config: NotificationConfig | None = None)
 
 
 def play_sound(sound_name: str = "message", config: NotificationConfig | None = None) -> None:
-    """Toca um som de feedback usando canberra-gtk-play ou paplay."""
+    """Play a feedback sound using canberra-gtk-play or paplay."""
     if config and not config.sound:
         return
 
@@ -52,21 +52,21 @@ def play_sound(sound_name: str = "message", config: NotificationConfig | None = 
 
 
 def notify_recording_start(config: NotificationConfig | None = None) -> None:
-    # Apenas som — sem notificação visual para não flodar o painel
+    # Sound only — no visual notification to avoid flooding the panel
     play_sound("dialog-information", config)
 
 
 def notify_recording_stop(config: NotificationConfig | None = None) -> None:
-    # Apenas som — sem notificação visual para não flodar o painel
+    # Sound only — no visual notification to avoid flooding the panel
     play_sound("message-sent-instant", config)
 
 
 def notify_done(text: str, config: NotificationConfig | None = None) -> None:
-    # Som apenas — o texto já foi colado na app focada
+    # Sound only — the text has already been pasted into the focused app
     play_sound("message", config)
 
 
 def notify_error(error: str, config: NotificationConfig | None = None) -> None:
-    # Erro sim merece notificação visual + som
-    notify("LocalWhispr - Erro", error, config)
+    # Errors deserve a visual notification + sound
+    notify("LocalWhispr - Error", error, config)
     play_sound("dialog-error", config)

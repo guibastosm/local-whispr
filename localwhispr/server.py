@@ -1,4 +1,4 @@
-"""Daemon LocalWhispr: escuta comandos via Unix socket."""
+"""LocalWhispr daemon: listens for commands via Unix socket."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ SOCKET_PATH = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
 
 
 class LocalWhisprDaemon:
-    """Daemon que escuta comandos via Unix socket e orquestra os pipelines."""
+    """Daemon that listens for commands via Unix socket and orchestrates pipelines."""
 
     def __init__(self, app: "LocalWhisprApp") -> None:
         self._app = app
@@ -21,7 +21,7 @@ class LocalWhisprDaemon:
     async def handle_client(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
-        """Processa um comando recebido via socket."""
+        """Process a command received via socket."""
         try:
             data = await asyncio.wait_for(reader.read(1024), timeout=5.0)
             command = data.decode().strip()
@@ -40,7 +40,7 @@ class LocalWhisprDaemon:
             await writer.wait_closed()
 
     def _dispatch(self, command: str) -> str:
-        """Despacha o comando para a ação correta."""
+        """Dispatch command to the correct action."""
         match command:
             case "dictate":
                 return self._app.toggle_dictation()
@@ -58,39 +58,39 @@ class LocalWhisprDaemon:
                 asyncio.get_event_loop().call_soon(self._shutdown)
                 return "OK bye"
             case _:
-                return f"ERR comando desconhecido: {command}"
+                return f"ERR unknown command: {command}"
 
     def _shutdown(self) -> None:
-        """Encerra o daemon."""
-        print("[localwhispr] Encerrando daemon...")
+        """Shut down the daemon."""
+        print("[localwhispr] Shutting down daemon...")
         if self._server:
             self._server.close()
         asyncio.get_event_loop().stop()
 
     async def start(self) -> None:
-        """Inicia o servidor Unix socket."""
-        # Remove socket antigo se existir
+        """Start the Unix socket server."""
+        # Remove stale socket if it exists
         if SOCKET_PATH.exists():
             SOCKET_PATH.unlink()
 
         self._server = await asyncio.start_unix_server(
             self.handle_client, path=str(SOCKET_PATH)
         )
-        # Permissão: apenas o usuário atual
+        # Permission: current user only
         SOCKET_PATH.chmod(0o600)
 
-        print(f"[localwhispr] Daemon escutando em {SOCKET_PATH}")
-        print("[localwhispr] Pronto! Configure atalhos do GNOME para enviar comandos.")
-        print("[localwhispr]   Ditado:     localwhispr ctl dictate")
+        print(f"[localwhispr] Daemon listening on {SOCKET_PATH}")
+        print("[localwhispr] Ready! Configure GNOME shortcuts to send commands.")
+        print("[localwhispr]   Dictation:  localwhispr ctl dictate")
         print("[localwhispr]   Screenshot: localwhispr ctl screenshot")
-        print("[localwhispr]   Reunião:    localwhispr ctl meeting")
+        print("[localwhispr]   Meeting:    localwhispr ctl meeting")
         print()
 
         async with self._server:
             await self._server.serve_forever()
 
     async def cleanup(self) -> None:
-        """Limpa recursos ao encerrar."""
+        """Clean up resources on shutdown."""
         if self._server:
             self._server.close()
             await self._server.wait_closed()
@@ -102,17 +102,17 @@ def _merge_speaker_segments(
     mic_segments: list[tuple[float, float, str]],
     monitor_segments: list[tuple[float, float, str]],
 ) -> str:
-    """Intercala segmentos de mic e monitor por timestamp com labels [Eu]/[Outro]."""
+    """Interleave mic and monitor segments by timestamp with [Me]/[Other] labels."""
     tagged: list[tuple[float, str, str]] = []
     for start, _end, text in mic_segments:
-        tagged.append((start, "[Eu]", text))
+        tagged.append((start, "[Me]", text))
     for start, _end, text in monitor_segments:
-        tagged.append((start, "[Outro]", text))
+        tagged.append((start, "[Other]", text))
 
-    # Ordena por timestamp
+    # Sort by timestamp
     tagged.sort(key=lambda x: x[0])
 
-    # Agrupa segmentos consecutivos do mesmo falante
+    # Group consecutive segments from the same speaker
     parts: list[str] = []
     current_speaker = ""
     current_texts: list[str] = []
@@ -131,7 +131,7 @@ def _merge_speaker_segments(
 
 
 class LocalWhisprApp:
-    """Lógica da aplicação: gerencia estado e pipelines."""
+    """Application logic: manages state and pipelines."""
 
     def __init__(
         self,
@@ -158,20 +158,20 @@ class LocalWhisprApp:
         self._capture_monitor = capture_monitor
         self._recording = False
         self._processing = False
-        self._mode: str = ""  # "dictate", "screenshot", ou "meeting"
+        self._mode: str = ""  # "dictate", "screenshot", or "meeting"
         self._meeting_recorder = None
-        self._dual_recorder = None  # DualRecorder para dictate com monitor
+        self._dual_recorder = None  # DualRecorder for dictate with monitor
 
     def toggle_dictation(self) -> str:
-        """Toggle gravação de ditado."""
+        """Toggle dictation recording."""
         if self._processing:
-            return "BUSY processando"
+            return "BUSY processing"
 
         if self._recording and self._mode == "dictate":
-            # Parar gravação e processar
+            # Stop recording and process
             return self._stop_and_process_dictation()
         elif not self._recording:
-            # Iniciar gravação
+            # Start recording
             self._mode = "dictate"
             self._recording = True
 
@@ -181,22 +181,22 @@ class LocalWhisprApp:
                     config=type("C", (), {"sample_rate": self._recorder.sample_rate, "channels": self._recorder.channels})()
                 )
                 self._dual_recorder.start()
-                print("[localwhispr] ● Gravando ditado (mic + headset)...")
+                print("[localwhispr] ● Recording dictation (mic + headset)...")
             else:
                 self._recorder.start()
-                print("[localwhispr] ● Gravando ditado...")
+                print("[localwhispr] ● Recording dictation...")
 
             from localwhispr.notifier import notify_recording_start
             notify_recording_start(self._notif)
 
             return "OK recording"
         else:
-            return f"BUSY modo={self._mode}"
+            return f"BUSY mode={self._mode}"
 
     def toggle_screenshot(self) -> str:
-        """Toggle gravação para comando com screenshot."""
+        """Toggle recording for screenshot command."""
         if self._processing:
-            return "BUSY processando"
+            return "BUSY processing"
 
         if self._recording and self._mode == "screenshot":
             return self._stop_and_process_screenshot()
@@ -208,25 +208,25 @@ class LocalWhisprApp:
             from localwhispr.notifier import notify_recording_start
             notify_recording_start(self._notif)
 
-            print("[localwhispr] ◉ Gravando comando + screenshot...")
+            print("[localwhispr] ◉ Recording command + screenshot...")
             return "OK recording"
         else:
-            return f"BUSY modo={self._mode}"
+            return f"BUSY mode={self._mode}"
 
     def toggle_meeting(self) -> str:
-        """Toggle gravação de reunião."""
+        """Toggle meeting recording."""
         if self._processing:
-            return "BUSY processando"
+            return "BUSY processing"
 
         if self._recording and self._mode == "meeting":
             return self._stop_and_process_meeting()
         elif not self._recording:
             return self._start_meeting()
         else:
-            return f"BUSY modo={self._mode}"
+            return f"BUSY mode={self._mode}"
 
     def get_status(self) -> str:
-        """Retorna status atual."""
+        """Return current status."""
         if self._processing:
             return f"STATUS processing mode={self._mode}"
         if self._recording:
@@ -234,13 +234,13 @@ class LocalWhisprApp:
         return "STATUS idle"
 
     def force_stop(self) -> str:
-        """Para gravação sem processar."""
+        """Stop recording without processing."""
         if self._recording and self._mode == "meeting" and self._meeting_recorder:
             self._meeting_recorder.stop()
             self._meeting_recorder = None
             self._recording = False
             self._mode = ""
-            print("[localwhispr] ■ Reunião cancelada.")
+            print("[localwhispr] ■ Meeting cancelled.")
             return "OK stopped"
         elif self._recording:
             if self._dual_recorder:
@@ -250,18 +250,18 @@ class LocalWhisprApp:
                 self._recorder.stop()
             self._recording = False
             self._mode = ""
-            print("[localwhispr] ■ Gravação cancelada.")
+            print("[localwhispr] ■ Recording cancelled.")
             return "OK stopped"
         return "OK already_idle"
 
     def _stop_and_process_dictation(self) -> str:
-        """Para gravação e inicia pipeline de ditado em thread."""
+        """Stop recording and start dictation pipeline in a thread."""
         import threading
 
         from localwhispr.notifier import notify_recording_stop
         notify_recording_stop(self._notif)
 
-        print("[localwhispr] ■ Parando gravação...")
+        print("[localwhispr] ■ Stopping recording...")
 
         if self._dual_recorder:
             mic_bytes, monitor_bytes = self._dual_recorder.stop()
@@ -269,7 +269,7 @@ class LocalWhisprApp:
             self._recording = False
 
             if (not mic_bytes or len(mic_bytes) < 1000) and (not monitor_bytes or len(monitor_bytes) < 1000):
-                print("[localwhispr] Gravação muito curta, ignorando.")
+                print("[localwhispr] Recording too short, ignoring.")
                 self._mode = ""
                 return "OK too_short"
 
@@ -282,7 +282,7 @@ class LocalWhisprApp:
             self._recording = False
 
             if not wav_bytes or len(wav_bytes) < 1000:
-                print("[localwhispr] Gravação muito curta, ignorando.")
+                print("[localwhispr] Recording too short, ignoring.")
                 self._mode = ""
                 return "OK too_short"
 
@@ -294,81 +294,81 @@ class LocalWhisprApp:
         return "OK processing"
 
     def _process_dictation(self, wav_bytes: bytes) -> None:
-        """Pipeline simples: transcrição → IA cleanup → digitar."""
+        """Simple pipeline: transcription -> AI cleanup -> type."""
         from localwhispr.notifier import notify_done, notify_error
 
         try:
-            print("[localwhispr] Transcrevendo...")
+            print("[localwhispr] Transcribing...")
             raw_text = self._transcriber.transcribe(wav_bytes)
             if not raw_text:
-                print("[localwhispr] Nenhum texto detectado.")
-                notify_error("Nenhuma fala detectada", self._notif)
+                print("[localwhispr] No speech detected.")
+                notify_error("No speech detected", self._notif)
                 return
 
-            print("[localwhispr] Polindo com IA...")
+            print("[localwhispr] Polishing with AI...")
             cleaned_text = self._cleanup.cleanup(raw_text)
 
-            print(f"[localwhispr] Digitando: {cleaned_text[:80]}...")
+            print(f"[localwhispr] Typing: {cleaned_text[:80]}...")
             self._typer.type_text(cleaned_text)
             notify_done(cleaned_text, self._notif)
 
         except Exception as e:
-            print(f"[localwhispr] ERRO no pipeline: {e}")
+            print(f"[localwhispr] ERROR in pipeline: {e}")
             notify_error(str(e), self._notif)
         finally:
             self._processing = False
             self._mode = ""
 
     def _process_dictation_dual(self, mic_bytes: bytes, monitor_bytes: bytes) -> None:
-        """Pipeline dual: transcreve mic + monitor separadamente, merge com labels, cleanup, digitar."""
+        """Dual pipeline: transcribe mic + monitor separately, merge with labels, cleanup, type."""
         from localwhispr.notifier import notify_done, notify_error
 
         try:
-            # Transcreve mic (Eu)
-            print("[localwhispr] Transcrevendo mic...")
+            # Transcribe mic (Me)
+            print("[localwhispr] Transcribing mic...")
             mic_segments = self._transcriber.transcribe_with_timestamps(mic_bytes) if mic_bytes and len(mic_bytes) > 1000 else []
 
-            # Transcreve monitor (Outro)
-            print("[localwhispr] Transcrevendo headset...")
+            # Transcribe monitor (Other)
+            print("[localwhispr] Transcribing headset...")
             monitor_segments = self._transcriber.transcribe_with_timestamps(monitor_bytes) if monitor_bytes and len(monitor_bytes) > 1000 else []
 
             if not mic_segments and not monitor_segments:
-                print("[localwhispr] Nenhuma fala detectada.")
-                notify_error("Nenhuma fala detectada", self._notif)
+                print("[localwhispr] No speech detected.")
+                notify_error("No speech detected", self._notif)
                 return
 
-            # Merge intercalado por timestamp com labels
+            # Merge interleaved by timestamp with labels
             labeled_text = _merge_speaker_segments(mic_segments, monitor_segments)
-            print(f"[localwhispr] Conversa mesclada: {labeled_text[:120]}...")
+            print(f"[localwhispr] Merged conversation: {labeled_text[:120]}...")
 
-            # AI cleanup com suporte a labels
-            print("[localwhispr] Polindo com IA...")
+            # AI cleanup with label support
+            print("[localwhispr] Polishing with AI...")
             cleaned_text = self._cleanup.cleanup_conversation(labeled_text)
 
-            print(f"[localwhispr] Digitando: {cleaned_text[:80]}...")
+            print(f"[localwhispr] Typing: {cleaned_text[:80]}...")
             self._typer.type_text(cleaned_text)
             notify_done(cleaned_text, self._notif)
 
         except Exception as e:
-            print(f"[localwhispr] ERRO no pipeline dual: {e}")
+            print(f"[localwhispr] ERROR in dual pipeline: {e}")
             notify_error(str(e), self._notif)
         finally:
             self._processing = False
             self._mode = ""
 
     def _stop_and_process_screenshot(self) -> str:
-        """Para gravação e inicia pipeline de screenshot em thread."""
+        """Stop recording and start screenshot pipeline in a thread."""
         import threading
 
         from localwhispr.notifier import notify_recording_stop
         notify_recording_stop(self._notif)
 
-        print("[localwhispr] ■ Parando gravação de comando...")
+        print("[localwhispr] ■ Stopping command recording...")
         wav_bytes = self._recorder.stop()
         self._recording = False
 
         if not wav_bytes or len(wav_bytes) < 1000:
-            print("[localwhispr] Gravação muito curta, ignorando.")
+            print("[localwhispr] Recording too short, ignoring.")
             self._mode = ""
             return "OK too_short"
 
@@ -379,60 +379,60 @@ class LocalWhisprApp:
         return "OK processing"
 
     def _process_screenshot(self, wav_bytes: bytes) -> None:
-        """Pipeline: transcrição → screenshot + LLM multimodal → digitar."""
+        """Pipeline: transcription -> screenshot + multimodal LLM -> type."""
         from localwhispr.notifier import notify_done, notify_error
 
         try:
-            print("[localwhispr] Transcrevendo comando...")
+            print("[localwhispr] Transcribing command...")
             command_text = self._transcriber.transcribe(wav_bytes)
             if not command_text:
-                print("[localwhispr] Nenhum comando detectado.")
-                notify_error("Nenhum comando detectado", self._notif)
+                print("[localwhispr] No command detected.")
+                notify_error("No command detected", self._notif)
                 return
 
-            print(f"[localwhispr] Executando: {command_text[:80]}...")
+            print(f"[localwhispr] Executing: {command_text[:80]}...")
             result = self._screenshot_cmd.execute(command_text)
 
             if result:
-                print(f"[localwhispr] Digitando resposta: {result[:80]}...")
+                print(f"[localwhispr] Typing response: {result[:80]}...")
                 self._typer.type_text(result)
                 notify_done(result, self._notif)
             else:
-                notify_error("IA não retornou resposta", self._notif)
+                notify_error("AI returned no response", self._notif)
 
         except Exception as e:
-            print(f"[localwhispr] ERRO no pipeline screenshot: {e}")
+            print(f"[localwhispr] ERROR in screenshot pipeline: {e}")
             notify_error(str(e), self._notif)
         finally:
             self._processing = False
             self._mode = ""
 
-    # ── Meeting mode ────────────────────────────────────────────────────
+    # -- Meeting mode --------------------------------------------------------
 
     def _start_meeting(self) -> str:
-        """Inicia gravação de reunião."""
+        """Start meeting recording."""
         from localwhispr.meeting import MeetingRecorder
         from localwhispr.notifier import notify, play_sound
 
         if not self._meeting_config:
-            return "ERR meeting_config ausente"
+            return "ERR meeting_config missing"
 
         try:
             self._meeting_recorder = MeetingRecorder(self._meeting_config)
             output_dir = self._meeting_recorder.start()
         except RuntimeError as e:
-            print(f"[localwhispr] ERRO ao iniciar meeting: {e}")
+            print(f"[localwhispr] ERROR starting meeting: {e}")
             return f"ERR {e}"
 
         self._mode = "meeting"
         self._recording = True
 
         play_sound("device-added", self._notif)
-        print(f"[localwhispr] ● Gravando reunião em {output_dir}")
+        print(f"[localwhispr] ● Recording meeting in {output_dir}")
         return "OK meeting_recording"
 
     def _stop_and_process_meeting(self) -> str:
-        """Para gravação de reunião e inicia pós-processamento."""
+        """Stop meeting recording and start post-processing."""
         import threading
         from localwhispr.notifier import play_sound
 
@@ -441,7 +441,7 @@ class LocalWhisprApp:
             self._mode = ""
             return "ERR no_meeting_recorder"
 
-        print("[localwhispr] ■ Parando gravação da reunião...")
+        print("[localwhispr] ■ Stopping meeting recording...")
         play_sound("device-removed", self._notif)
 
         files = self._meeting_recorder.stop()
@@ -459,7 +459,7 @@ class LocalWhisprApp:
         return "OK meeting_processing"
 
     def _process_meeting(self, files) -> None:
-        """Pipeline: transcrição chunked + ata IA."""
+        """Pipeline: chunked transcription + AI meeting minutes."""
         from localwhispr.meeting_processor import process_meeting
         from localwhispr.notifier import notify, notify_error, play_sound
 
@@ -475,22 +475,22 @@ class LocalWhisprApp:
             if results:
                 msg_parts = []
                 if "transcription" in results:
-                    msg_parts.append(f"Transcrição: {results['transcription']}")
+                    msg_parts.append(f"Transcription: {results['transcription']}")
                 if "summary" in results:
-                    msg_parts.append(f"Ata: {results['summary']}")
+                    msg_parts.append(f"Summary: {results['summary']}")
 
                 notify(
-                    "Reunião processada ✅",
+                    "Meeting processed ✅",
                     "\n".join(msg_parts) if msg_parts else str(files.output_dir),
                     self._notif,
                 )
                 play_sound("complete", self._notif)
             else:
-                notify_error("Nenhum conteúdo gerado da reunião", self._notif)
+                notify_error("No content generated from meeting", self._notif)
 
         except Exception as e:
-            print(f"[localwhispr] ERRO no pipeline de meeting: {e}")
-            notify_error(f"Erro no meeting: {e}", self._notif)
+            print(f"[localwhispr] ERROR in meeting pipeline: {e}")
+            notify_error(f"Meeting error: {e}", self._notif)
         finally:
             self._processing = False
             self._mode = ""

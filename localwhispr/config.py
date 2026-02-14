@@ -1,4 +1,4 @@
-"""Carrega e valida a configuração do LocalWhispr."""
+"""Load and validate LocalWhispr configuration."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ class ShortcutConfig:
 @dataclass
 class WhisperConfig:
     model: str = "large-v3"
-    language: str = "pt"
+    language: str = ""
     device: str = "cuda"
     compute_type: str = "float16"
 
@@ -31,13 +31,14 @@ class OllamaConfig:
     cleanup_model: str = "llama3.2"
     vision_model: str = "gemma3:12b"
     cleanup_prompt: str = (
-        "Você é um assistente de polimento de texto.\n"
-        "Receba texto transcrito de voz e retorne APENAS o texto limpo:\n"
-        "- Remova hesitações (uh, hmm, eh, tipo, né, então, assim)\n"
-        "- Adicione pontuação correta\n"
-        "- Corrija erros óbvios de transcrição\n"
-        "- Mantenha o significado original intacto\n"
-        "- Responda SOMENTE com o texto limpo, sem explicações ou prefácios."
+        "You are a voice transcription polishing assistant.\n"
+        "Receive raw transcribed text and return ONLY the cleaned text:\n"
+        "- Remove hesitations (uh, uhm, hmm, eh, like, you know, so, well, tipo, né, então, assim)\n"
+        "- Add correct punctuation\n"
+        "- Fix obvious transcription errors\n"
+        "- Keep the original meaning intact\n"
+        "- ALWAYS respond in the SAME LANGUAGE as the input text\n"
+        "- Respond ONLY with the cleaned text, no explanations or preambles."
     )
 
 
@@ -72,13 +73,14 @@ class MeetingConfig:
     sample_rate: int = 16000
     summary_model: str = "llama3.2"
     summary_prompt: str = (
-        "Você é um assistente de atas de reunião.\n"
-        "Receba a transcrição de uma reunião e gere:\n"
-        "1. RESUMO: parágrafos curtos com os pontos principais\n"
-        "2. DECISÕES: lista de decisões tomadas\n"
-        "3. ACTION ITEMS: lista de tarefas com responsáveis (se mencionados)\n"
-        "4. TÓPICOS: lista dos assuntos discutidos\n"
-        "Formato: Markdown limpo e organizado."
+        "You are a meeting minutes assistant.\n"
+        "Receive a meeting transcription and generate:\n"
+        "1. SUMMARY: short paragraphs with the main points\n"
+        "2. DECISIONS: list of decisions made\n"
+        "3. ACTION ITEMS: task list with responsible people (if mentioned)\n"
+        "4. TOPICS: list of subjects discussed\n"
+        "Format: clean and organized Markdown.\n"
+        "IMPORTANT: Respond in the SAME LANGUAGE as the transcription."
     )
 
 
@@ -95,15 +97,15 @@ class LocalWhisprConfig:
 
 
 def _apply_dict(dc: Any, data: dict) -> None:
-    """Aplica um dicionário sobre um dataclass existente."""
+    """Apply a dictionary onto an existing dataclass."""
     for key, value in data.items():
         if hasattr(dc, key):
             setattr(dc, key, value)
 
 
 def load_config(path: str | Path | None = None) -> LocalWhisprConfig:
-    """Carrega configuração do YAML. Procura em ordem:
-    1. Caminho explícito
+    """Load configuration from YAML. Searches in order:
+    1. Explicit path
     2. ./config.yaml
     3. ~/.config/localwhispr/config.yaml
     """
@@ -141,8 +143,8 @@ def load_config(path: str | Path | None = None) -> LocalWhisprConfig:
             if "meeting" in raw:
                 _apply_dict(config.meeting, raw["meeting"])
 
-            print(f"[localwhispr] Config carregado de: {p}")
+            print(f"[localwhispr] Config loaded from: {p}")
             return config
 
-    print("[localwhispr] Nenhum config.yaml encontrado, usando padrões.")
+    print("[localwhispr] No config.yaml found, using defaults.")
     return config

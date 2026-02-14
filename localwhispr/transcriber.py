@@ -1,4 +1,4 @@
-"""Transcrição de áudio usando faster-whisper com CUDA."""
+"""Audio transcription using faster-whisper with CUDA."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 class Transcriber:
-    """Wrapper sobre faster-whisper com suporte a CUDA."""
+    """Wrapper over faster-whisper with CUDA support."""
 
     def __init__(self, config: WhisperConfig | None = None) -> None:
         from localwhispr.config import WhisperConfig as WC
@@ -28,7 +28,7 @@ class Transcriber:
     def _ensure_model(self) -> WhisperModel:
         if self._model is None:
             print(
-                f"[localwhispr] Carregando modelo Whisper '{self._model_name}' "
+                f"[localwhispr] Loading Whisper model '{self._model_name}' "
                 f"(device={self._device}, compute={self._compute_type})..."
             )
             t0 = time.time()
@@ -37,11 +37,11 @@ class Transcriber:
                 device=self._device,
                 compute_type=self._compute_type,
             )
-            print(f"[localwhispr] Modelo carregado em {time.time() - t0:.1f}s")
+            print(f"[localwhispr] Model loaded in {time.time() - t0:.1f}s")
         return self._model
 
     def transcribe(self, wav_bytes: bytes) -> str:
-        """Transcreve bytes WAV e retorna o texto."""
+        """Transcribe WAV bytes and return text."""
         if not wav_bytes:
             return ""
 
@@ -65,11 +65,11 @@ class Transcriber:
 
         result = " ".join(text_parts).strip()
         if result:
-            print(f"[localwhispr] Transcrição: {result[:100]}...")
+            print(f"[localwhispr] Transcription: {result[:100]}...")
         return result
 
     def transcribe_with_timestamps(self, wav_bytes: bytes) -> list[tuple[float, float, str]]:
-        """Transcreve bytes WAV e retorna segmentos com timestamps: [(start, end, text), ...]."""
+        """Transcribe WAV bytes and return segments with timestamps: [(start, end, text), ...]."""
         if not wav_bytes:
             return []
 
@@ -95,5 +95,5 @@ class Transcriber:
 
         if result:
             total_text = " ".join(t for _, _, t in result)
-            print(f"[localwhispr] Transcrição ({len(result)} segs): {total_text[:100]}...")
+            print(f"[localwhispr] Transcription ({len(result)} segs): {total_text[:100]}...")
         return result

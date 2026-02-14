@@ -1,4 +1,4 @@
-"""LocalWhispr: Ditado por voz multimodal com IA para Linux."""
+"""LocalWhispr: Multimodal voice dictation with AI for Linux."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ __version__ = "0.2.0"
 
 
 def _preload_cuda_libs() -> None:
-    """Pré-carrega libs NVIDIA do pip (cublas/cudnn) antes do ctranslate2."""
+    """Pre-load NVIDIA pip libs (cublas/cudnn) before ctranslate2."""
     lib_dirs: list[str] = []
     for pkg in ("nvidia.cublas.lib", "nvidia.cudnn.lib"):
         spec = importlib.util.find_spec(pkg)
@@ -23,7 +23,7 @@ def _preload_cuda_libs() -> None:
     if not lib_dirs:
         return
 
-    # Carrega as .so necessárias via ctypes (ordem importa: cublas antes de cudnn)
+    # Load required .so via ctypes (order matters: cublas before cudnn)
     libs_to_load = [
         "libcublas.so.12",
         "libcublasLt.so.12",
@@ -39,7 +39,7 @@ def _preload_cuda_libs() -> None:
                 except OSError:
                     pass
 
-    # Também atualiza LD_LIBRARY_PATH para subprocessos futuros
+    # Also update LD_LIBRARY_PATH for future subprocesses
     existing = os.environ.get("LD_LIBRARY_PATH", "")
     new_paths = ":".join(lib_dirs)
     if existing:

@@ -1,4 +1,4 @@
-"""Pós-processamento de reuniões: transcrição chunked + ata com IA."""
+"""Meeting post-processing: chunked transcription + AI meeting minutes."""
 
 from __future__ import annotations
 
@@ -17,9 +17,9 @@ if TYPE_CHECKING:
     from localwhispr.meeting import MeetingFiles
     from localwhispr.transcriber import Transcriber
 
-# Tamanho de cada chunk para transcrição (5 minutos em samples a 16kHz)
-CHUNK_DURATION_S = 300  # 5 minutos
-# Limiar de palavras para resumo incremental
+# Chunk size for transcription (5 minutes in samples at 16kHz)
+CHUNK_DURATION_S = 300  # 5 minutes
+# Word threshold for incremental summary
 SUMMARY_WORD_LIMIT = 3000
 
 
@@ -30,48 +30,48 @@ def process_meeting(
     meeting_config: "MeetingConfig",
     transcriber: "Transcriber | None" = None,
 ) -> dict[str, Path]:
-    """Pipeline completo: transcrição + ata. Retorna paths dos arquivos gerados."""
+    """Full pipeline: transcription + meeting minutes. Returns paths of generated files."""
     output_dir = files.output_dir
     results: dict[str, Path] = {}
 
-    # 1. Transcrição
-    print("[localwhispr] Iniciando transcrição da reunião...")
+    # 1. Transcription
+    print("[localwhispr] Starting meeting transcription...")
     t0 = time.time()
     transcription = transcribe_meeting(files.combined_wav, whisper_config, transcriber)
     elapsed = time.time() - t0
 
     if not transcription:
-        print("[localwhispr] Nenhum áudio transcrito na reunião.")
+        print("[localwhispr] No audio transcribed from meeting.")
         return results
 
-    # Salva transcrição
+    # Save transcription
     transcription_path = output_dir / "transcription.md"
     header = (
-        f"# Transcrição da Reunião\n\n"
-        f"**Data**: {files.started_at.strftime('%d/%m/%Y %H:%M')}\n"
-        f"**Duração**: {_format_duration(files.duration_seconds)}\n"
-        f"**Tempo de transcrição**: {elapsed:.1f}s\n\n---\n\n"
+        f"# Meeting Transcription\n\n"
+        f"**Date**: {files.started_at.strftime('%Y-%m-%d %H:%M')}\n"
+        f"**Duration**: {_format_duration(files.duration_seconds)}\n"
+        f"**Transcription time**: {elapsed:.1f}s\n\n---\n\n"
     )
     transcription_path.write_text(header + transcription, encoding="utf-8")
     results["transcription"] = transcription_path
-    print(f"[localwhispr] Transcrição salva: {transcription_path}")
+    print(f"[localwhispr] Transcription saved: {transcription_path}")
 
-    # 2. Ata / Resumo com IA
-    print("[localwhispr] Gerando ata da reunião com IA...")
+    # 2. Meeting minutes / Summary with AI
+    print("[localwhispr] Generating meeting minutes with AI...")
     summary = generate_summary(transcription, ollama_config, meeting_config)
 
     if summary:
         summary_path = output_dir / "summary.md"
         summary_header = (
-            f"# Ata da Reunião\n\n"
-            f"**Data**: {files.started_at.strftime('%d/%m/%Y %H:%M')}\n"
-            f"**Duração**: {_format_duration(files.duration_seconds)}\n\n---\n\n"
+            f"# Meeting Minutes\n\n"
+            f"**Date**: {files.started_at.strftime('%Y-%m-%d %H:%M')}\n"
+            f"**Duration**: {_format_duration(files.duration_seconds)}\n\n---\n\n"
         )
         summary_path.write_text(summary_header + summary, encoding="utf-8")
         results["summary"] = summary_path
-        print(f"[localwhispr] Ata salva: {summary_path}")
+        print(f"[localwhispr] Minutes saved: {summary_path}")
     else:
-        print("[localwhispr] AVISO: não foi possível gerar ata.")
+        print("[localwhispr] WARNING: could not generate meeting minutes.")
 
     return results
 
@@ -81,11 +81,11 @@ def transcribe_meeting(
     whisper_config: "WhisperConfig",
     transcriber: "Transcriber | None" = None,
 ) -> str:
-    """Transcreve áudio longo em chunks com timestamps."""
+    """Transcribe long audio in chunks with timestamps."""
     if not wav_path.exists() or wav_path.stat().st_size < 1000:
         return ""
 
-    # Lê o áudio inteiro
+    # Read the full audio
     with wave.open(str(wav_path), "rb") as wf:
         sample_rate = wf.getframerate()
         n_frames = wf.getnframes()
@@ -95,22 +95,22 @@ def transcribe_meeting(
     total_duration = len(audio) / sample_rate
     chunk_samples = CHUNK_DURATION_S * sample_rate
 
-    print(f"[localwhispr] Áudio: {total_duration:.0f}s ({total_duration/60:.1f} min)")
+    print(f"[localwhispr] Audio: {total_duration:.0f}s ({total_duration/60:.1f} min)")
 
-    # Reutiliza modelo já carregado pelo daemon, ou carrega novo
+    # Reuse model already loaded by the daemon, or load a new one
     if transcriber:
         model = transcriber._ensure_model()
-        print("[localwhispr] Reutilizando modelo Whisper do daemon")
+        print("[localwhispr] Reusing Whisper model from daemon")
     else:
         from faster_whisper import WhisperModel
-        print(f"[localwhispr] Carregando Whisper '{whisper_config.model}'...")
+        print(f"[localwhispr] Loading Whisper '{whisper_config.model}'...")
         model = WhisperModel(
             whisper_config.model,
             device=whisper_config.device,
             compute_type=whisper_config.compute_type,
         )
 
-    # Transcreve em chunks
+    # Transcribe in chunks
     parts: list[str] = []
     n_chunks = max(1, int(np.ceil(len(audio) / chunk_samples)))
 
@@ -122,9 +122,9 @@ def transcribe_meeting(
         chunk_start_time = start_sample / sample_rate
         timestamp = _format_duration(chunk_start_time)
 
-        print(f"[localwhispr] Transcrevendo chunk {i+1}/{n_chunks} [{timestamp}]...")
+        print(f"[localwhispr] Transcribing chunk {i+1}/{n_chunks} [{timestamp}]...")
 
-        # Converte chunk para WAV em memória
+        # Convert chunk to in-memory WAV
         wav_buf = io.BytesIO()
         with wave.open(wav_buf, "wb") as wf:
             wf.setnchannels(1)
@@ -146,7 +146,7 @@ def transcribe_meeting(
 
         chunk_text_parts: list[str] = []
         for segment in segments:
-            # Timestamp absoluto = offset do chunk + timestamp do segmento
+            # Absolute timestamp = chunk offset + segment timestamp
             abs_start = chunk_start_time + segment.start
             ts_str = _format_duration(abs_start)
             chunk_text_parts.append(f"[{ts_str}] {segment.text.strip()}")
@@ -162,15 +162,15 @@ def generate_summary(
     ollama_config: "OllamaConfig",
     meeting_config: "MeetingConfig",
 ) -> str:
-    """Gera ata/resumo da reunião via Ollama."""
+    """Generate meeting minutes/summary via Ollama."""
     word_count = len(transcription.split())
-    print(f"[localwhispr] Transcrição: {word_count} palavras")
+    print(f"[localwhispr] Transcription: {word_count} words")
 
     if word_count <= SUMMARY_WORD_LIMIT:
-        # Cabe numa única chamada
+        # Fits in a single call
         return _ollama_summarize(transcription, ollama_config, meeting_config)
     else:
-        # Resumo incremental: divide em blocos, resume cada, depois meta-resumo
+        # Incremental summary: split into blocks, summarize each, then meta-summary
         return _incremental_summary(transcription, ollama_config, meeting_config)
 
 
@@ -179,7 +179,7 @@ def _ollama_summarize(
     ollama_config: "OllamaConfig",
     meeting_config: "MeetingConfig",
 ) -> str:
-    """Envia texto ao Ollama para gerar resumo."""
+    """Send text to Ollama for summary generation."""
     base_url = ollama_config.base_url.rstrip("/")
     model = meeting_config.summary_model
     prompt = meeting_config.summary_prompt
@@ -189,7 +189,7 @@ def _ollama_summarize(
             f"{base_url}/api/generate",
             json={
                 "model": model,
-                "prompt": f"{prompt}\n\nTranscrição da reunião:\n\n{text}",
+                "prompt": f"{prompt}\n\nMeeting transcription:\n\n{text}",
                 "stream": False,
                 "options": {
                     "temperature": 0.3,
@@ -203,10 +203,10 @@ def _ollama_summarize(
         return data.get("response", "").strip()
 
     except httpx.ConnectError:
-        print("[localwhispr] ERRO: Não foi possível conectar ao Ollama.")
+        print("[localwhispr] ERROR: Could not connect to Ollama.")
         return ""
     except Exception as e:
-        print(f"[localwhispr] ERRO na geração de ata: {e}")
+        print(f"[localwhispr] ERROR generating meeting minutes: {e}")
         return ""
 
 
@@ -215,8 +215,8 @@ def _incremental_summary(
     ollama_config: "OllamaConfig",
     meeting_config: "MeetingConfig",
 ) -> str:
-    """Resume transcrições longas em blocos e depois faz meta-resumo."""
-    # Divide em blocos de ~2500 palavras
+    """Summarize long transcriptions in blocks and then create a meta-summary."""
+    # Split into ~2500 word blocks
     words = transcription.split()
     block_size = 2500
     blocks: list[str] = []
@@ -225,32 +225,33 @@ def _incremental_summary(
         block = " ".join(words[i:i + block_size])
         blocks.append(block)
 
-    print(f"[localwhispr] Resumo incremental: {len(blocks)} blocos")
+    print(f"[localwhispr] Incremental summary: {len(blocks)} blocks")
 
-    # Resume cada bloco
+    # Summarize each block
     partial_summaries: list[str] = []
     for idx, block in enumerate(blocks):
-        print(f"[localwhispr] Resumindo bloco {idx+1}/{len(blocks)}...")
+        print(f"[localwhispr] Summarizing block {idx+1}/{len(blocks)}...")
         summary = _ollama_summarize(block, ollama_config, meeting_config)
         if summary:
-            partial_summaries.append(f"## Parte {idx+1}\n\n{summary}")
+            partial_summaries.append(f"## Part {idx+1}\n\n{summary}")
 
     if not partial_summaries:
         return ""
 
-    # Se só tem um bloco, retorna direto
+    # If only one block, return directly
     if len(partial_summaries) == 1:
         return partial_summaries[0]
 
-    # Meta-resumo: combina os resumos parciais
+    # Meta-summary: combine partial summaries
     combined = "\n\n---\n\n".join(partial_summaries)
-    print("[localwhispr] Gerando meta-resumo...")
+    print("[localwhispr] Generating meta-summary...")
 
     meta_prompt = (
-        "Você recebeu resumos parciais de uma reunião longa. "
-        "Combine-os em um resumo único e coerente, mantendo o formato:\n"
-        "1. RESUMO\n2. DECISÕES\n3. ACTION ITEMS\n4. TÓPICOS\n"
-        "Elimine redundâncias e organize cronologicamente."
+        "You received partial summaries of a long meeting. "
+        "Combine them into a single coherent summary, keeping the format:\n"
+        "1. SUMMARY\n2. DECISIONS\n3. ACTION ITEMS\n4. TOPICS\n"
+        "Eliminate redundancies and organize chronologically. "
+        "IMPORTANT: Respond in the SAME LANGUAGE as the transcription."
     )
 
     base_url = ollama_config.base_url.rstrip("/")
@@ -259,7 +260,7 @@ def _incremental_summary(
             f"{base_url}/api/generate",
             json={
                 "model": meeting_config.summary_model,
-                "prompt": f"{meta_prompt}\n\nResumos parciais:\n\n{combined}",
+                "prompt": f"{meta_prompt}\n\nPartial summaries:\n\n{combined}",
                 "stream": False,
                 "options": {
                     "temperature": 0.3,
@@ -272,13 +273,13 @@ def _incremental_summary(
         data = response.json()
         return data.get("response", "").strip()
     except Exception as e:
-        print(f"[localwhispr] ERRO no meta-resumo: {e}")
-        # Retorna os resumos parciais como fallback
+        print(f"[localwhispr] ERROR in meta-summary: {e}")
+        # Return partial summaries as fallback
         return combined
 
 
 def _format_duration(seconds: float) -> str:
-    """Formata segundos como HH:MM:SS."""
+    """Format seconds as HH:MM:SS."""
     td = timedelta(seconds=int(seconds))
     total_seconds = int(td.total_seconds())
     hours = total_seconds // 3600

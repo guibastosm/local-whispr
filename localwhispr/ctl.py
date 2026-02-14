@@ -1,4 +1,4 @@
-"""Cliente CLI para enviar comandos ao daemon LocalWhispr via Unix socket."""
+"""CLI client to send commands to the LocalWhispr daemon via Unix socket."""
 
 from __future__ import annotations
 
@@ -11,10 +11,10 @@ SOCKET_PATH = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
 
 
 async def send_command(command: str) -> str:
-    """Envia um comando ao daemon e retorna a resposta."""
+    """Send a command to the daemon and return the response."""
     if not SOCKET_PATH.exists():
-        print("[localwhispr] Daemon não está rodando.")
-        print("[localwhispr] Inicie com: localwhispr serve")
+        print("[localwhispr] Daemon is not running.")
+        print("[localwhispr] Start with: localwhispr serve")
         sys.exit(1)
 
     try:
@@ -28,35 +28,35 @@ async def send_command(command: str) -> str:
         return response.decode().strip()
 
     except ConnectionRefusedError:
-        print("[localwhispr] Daemon não está respondendo.")
-        print("[localwhispr] Reinicie com: localwhispr serve")
+        print("[localwhispr] Daemon is not responding.")
+        print("[localwhispr] Restart with: localwhispr serve")
         sys.exit(1)
     except asyncio.TimeoutError:
-        print("[localwhispr] Timeout aguardando resposta do daemon.")
+        print("[localwhispr] Timeout waiting for daemon response.")
         sys.exit(1)
 
 
 def ctl_main(args: list[str]) -> None:
-    """Entry point para o subcomando 'ctl'."""
+    """Entry point for the 'ctl' subcommand."""
     if not args:
-        print("Uso: localwhispr ctl <comando>")
+        print("Usage: localwhispr ctl <command>")
         print()
-        print("Comandos disponíveis:")
-        print("  dictate      Toggle gravação de ditado (iniciar/parar)")
-        print("  screenshot   Toggle gravação screenshot + IA multimodal")
-        print("  meeting      Toggle gravação de reunião (mic + sistema)")
-        print("  status       Verifica status atual do daemon")
-        print("  stop         Cancela gravação em andamento")
-        print("  ping         Verifica se o daemon está vivo")
-        print("  quit         Encerra o daemon")
+        print("Available commands:")
+        print("  dictate      Toggle dictation recording (start/stop)")
+        print("  screenshot   Toggle screenshot + multimodal AI recording")
+        print("  meeting      Toggle meeting recording (mic + system audio)")
+        print("  status       Check current daemon status")
+        print("  stop         Cancel ongoing recording")
+        print("  ping         Check if daemon is alive")
+        print("  quit         Shut down the daemon")
         sys.exit(0)
 
     command = args[0]
     valid_commands = {"dictate", "screenshot", "meeting", "status", "stop", "ping", "quit"}
 
     if command not in valid_commands:
-        print(f"[localwhispr] Comando desconhecido: {command}")
-        print(f"[localwhispr] Comandos válidos: {', '.join(sorted(valid_commands))}")
+        print(f"[localwhispr] Unknown command: {command}")
+        print(f"[localwhispr] Valid commands: {', '.join(sorted(valid_commands))}")
         sys.exit(1)
 
     response = asyncio.run(send_command(command))

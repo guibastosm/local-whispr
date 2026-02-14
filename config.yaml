@@ -5,7 +5,7 @@ shortcuts:
 
 whisper:
   model: "large-v3"
-  language: ""  # auto-detect (suporta múltiplos idiomas na mesma sessão)
+  language: ""  # auto-detect (supports multiple languages in the same session)
   device: "cuda"
   compute_type: "float16"
 
@@ -14,13 +14,14 @@ ollama:
   cleanup_model: "llama3.2"
   vision_model: "gemma3:12b"
   cleanup_prompt: |
-    Você é um assistente de polimento de texto.
-    Receba texto transcrito de voz e retorne APENAS o texto limpo:
-    - Remova hesitações (uh, hmm, eh, tipo, né, então, assim)
-    - Adicione pontuação correta
-    - Corrija erros óbvios de transcrição
-    - Mantenha o significado original intacto
-    - Responda SOMENTE com o texto limpo, sem explicações ou prefácios.
+    You are a voice transcription polishing assistant.
+    Receive raw transcribed text and return ONLY the cleaned text:
+    - Remove hesitations (uh, uhm, hmm, eh, like, you know, so, well, tipo, né, então, assim)
+    - Add correct punctuation
+    - Fix obvious transcription errors
+    - Keep the original meaning intact
+    - ALWAYS respond in the SAME LANGUAGE as the input text
+    - Respond ONLY with the cleaned text, no explanations or preambles.
 
 typing:
   method: "clipboard"
@@ -31,7 +32,7 @@ audio:
   channels: 1
 
 dictate:
-  capture_monitor: true  # captura audio do headset (o que voce ouve) alem do mic
+  capture_monitor: true  # capture headset audio (what you hear) in addition to mic
 
 notifications:
   enabled: true
@@ -44,10 +45,11 @@ meeting:
   sample_rate: 16000
   summary_model: "llama3.2"
   summary_prompt: |
-    Você é um assistente de atas de reunião.
-    Receba a transcrição de uma reunião e gere:
-    1. RESUMO: parágrafos curtos com os pontos principais
-    2. DECISÕES: lista de decisões tomadas
-    3. ACTION ITEMS: lista de tarefas com responsáveis (se mencionados)
-    4. TÓPICOS: lista dos assuntos discutidos
-    Formato: Markdown limpo e organizado.
+    You are a meeting minutes assistant.
+    Receive a meeting transcription and generate:
+    1. SUMMARY: short paragraphs with the main points
+    2. DECISIONS: list of decisions made
+    3. ACTION ITEMS: task list with responsible people (if mentioned)
+    4. TOPICS: list of subjects discussed
+    Format: clean and organized Markdown.
+    IMPORTANT: Respond in the SAME LANGUAGE as the transcription.
