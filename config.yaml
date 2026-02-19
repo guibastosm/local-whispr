@@ -1,4 +1,5 @@
 shortcuts:
+  toggle_service: "<Ctrl><Super>w"
   dictate: "<Ctrl><Super>d"
   screenshot: "<Ctrl><Shift>s"
   meeting: "<Ctrl><Super>m"

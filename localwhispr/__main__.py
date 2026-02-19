@@ -85,11 +85,13 @@ def cmd_setup_shortcuts(args: argparse.Namespace) -> None:
     config = load_config(args.config if hasattr(args, "config") else None)
 
     # CLI flags override config.yaml, which overrides defaults
+    toggle_service = args.toggle_service if args.toggle_service != "_FROM_CONFIG" else config.shortcuts.toggle_service
     dictate = args.dictate if args.dictate != "_FROM_CONFIG" else config.shortcuts.dictate
     screenshot = args.screenshot if args.screenshot != "_FROM_CONFIG" else config.shortcuts.screenshot
     meeting = args.meeting if args.meeting != "_FROM_CONFIG" else config.shortcuts.meeting
 
     setup_gnome_shortcuts(
+        toggle_service_binding=toggle_service,
         dictate_binding=dictate,
         screenshot_binding=screenshot,
         meeting_binding=meeting,
@@ -129,6 +131,10 @@ def main() -> None:
         help="Configure GNOME keyboard shortcuts",
     )
     p_shortcuts.add_argument("-c", "--config", help="Path to config.yaml", default=None)
+    p_shortcuts.add_argument(
+        "--toggle-service", default="_FROM_CONFIG",
+        help="Shortcut to toggle service on/off (default: reads from config.yaml)",
+    )
     p_shortcuts.add_argument(
         "--dictate", default="_FROM_CONFIG",
         help="Shortcut for toggle dictation (default: reads from config.yaml)",

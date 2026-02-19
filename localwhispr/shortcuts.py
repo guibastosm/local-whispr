@@ -52,7 +52,9 @@ def _find_localwhispr_slots(existing: list[str]) -> dict[str, str]:
         name = _run_dconf("read", f"{path}name")
         if "LocalWhispr" in name:
             cmd = _run_dconf("read", f"{path}command")
-            if "dictate" in cmd:
+            if "toggle-service" in cmd.lower() or "Toggle" in name:
+                slots["toggle_service"] = path
+            elif "dictate" in cmd:
                 slots["dictate"] = path
             elif "screenshot" in cmd:
                 slots["screenshot"] = path
@@ -78,12 +80,18 @@ def _next_slot_index(existing: list[str]) -> int:
 
 def _write_keybinding(path: str, name: str, command: str, binding: str) -> None:
     """Write a custom keybinding via dconf."""
-    subprocess.run(["dconf", "write", f"{path}name", f"'{name}'"], check=True)
-    subprocess.run(["dconf", "write", f"{path}command", f"'{command}'"], check=True)
-    subprocess.run(["dconf", "write", f"{path}binding", f"'{binding}'"], check=True)
+    # dconf expects GVariant string format: 'value' with inner quotes escaped
+    def _gvariant_str(s: str) -> str:
+        escaped = s.replace("'", "\\'")
+        return f"'{escaped}'"
+
+    subprocess.run(["dconf", "write", f"{path}name", _gvariant_str(name)], check=True)
+    subprocess.run(["dconf", "write", f"{path}command", _gvariant_str(command)], check=True)
+    subprocess.run(["dconf", "write", f"{path}binding", _gvariant_str(binding)], check=True)
 
 
 def setup_gnome_shortcuts(
+    toggle_service_binding: str = "<Ctrl><Super>w",
     dictate_binding: str = "<Ctrl><Shift>d",
     screenshot_binding: str = "<Ctrl><Shift>s",
     meeting_binding: str = "<Ctrl><Shift>m",
@@ -107,6 +115,15 @@ def setup_gnome_shortcuts(
         else:
             base_cmd = "localwhispr"
 
+    # Toggle service uses a bash one-liner to start/stop the systemd service
+    toggle_service_cmd = (
+        'bash -c "if systemctl --user is-active --quiet localwhispr; then '
+        'systemctl --user stop localwhispr && '
+        'canberra-gtk-play -i service-logout; else '
+        'systemctl --user start localwhispr && '
+        'canberra-gtk-play -i service-login; fi"'
+    )
+
     dictate_cmd = f"{base_cmd} ctl dictate"
     screenshot_cmd = f"{base_cmd} ctl screenshot"
     meeting_cmd = f"{base_cmd} ctl meeting"
@@ -115,6 +132,19 @@ def setup_gnome_shortcuts(
     lw_slots = _find_localwhispr_slots(existing)
 
     new_paths = list(existing)
+
+    # --- Toggle service shortcut ---
+    if "toggle_service" in lw_slots:
+        path = lw_slots["toggle_service"]
+        print(f"[localwhispr] Updating toggle service shortcut at {path}")
+    else:
+        idx = _next_slot_index(new_paths)
+        path = f"{BASE_PATH}/custom{idx}/"
+        new_paths.append(path)
+        print(f"[localwhispr] Creating toggle service shortcut at {path}")
+
+    _write_keybinding(path, "LocalWhispr Toggle Service", toggle_service_cmd, toggle_service_binding)
+    print(f"  → {toggle_service_binding} → toggle service on/off")
 
     # --- Dictation shortcut ---
     if "dictate" in lw_slots:
@@ -166,6 +196,7 @@ def setup_gnome_shortcuts(
     print("[localwhispr] Shortcuts configured successfully!")
     print("[localwhispr] Verify at: Settings > Keyboard > Shortcuts > Custom Shortcuts")
     print()
+    print("  Service (on/off):    " + toggle_service_binding)
     print("  Dictation (toggle):  " + dictate_binding)
     print("  Screenshot + AI:     " + screenshot_binding)
     print("  Meeting (toggle):    " + meeting_binding)

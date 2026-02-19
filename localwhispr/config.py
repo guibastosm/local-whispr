@@ -12,6 +12,7 @@ import yaml
 
 @dataclass
 class ShortcutConfig:
+    toggle_service: str = "<Ctrl><Super>w"
     dictate: str = "<Ctrl><Shift>d"
     screenshot: str = "<Ctrl><Shift>s"
     meeting: str = "<Ctrl><Shift>m"
